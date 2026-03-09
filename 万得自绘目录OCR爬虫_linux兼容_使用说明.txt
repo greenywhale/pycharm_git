@@ -1,0 +1,62 @@
+﻿银河麒麟运行说明（万得自绘目录OCR爬虫）
+
+一、脚本文件
+- 推荐脚本：万得自绘目录OCR爬虫_linux兼容.py
+- 目录：12.外部数据目录爬取_20260227
+
+二、系统前置（银河麒麟）
+1. 安装 Python 3.10+（建议 3.10/3.11）
+2. 安装 Tesseract OCR 与中文语言包
+   - Debian/Ubuntu/Kylin(apt) 示例：
+     sudo apt update
+     sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim
+
+三、Python依赖安装
+1. 进入脚本目录
+2. 执行：
+   python3 -m pip install -r requirements_linux.txt
+
+四、运行前准备
+1. 手动打开并登录万得客户端
+2. 切到“数据字典树形目录”页面
+3. 保持窗口前台，不要切屏
+
+五、推荐运行命令（Linux）
+python3 万得自绘目录OCR爬虫_linux兼容.py \
+  --backend mss \
+  --auto-expand \
+  --scroll-pixels 220 \
+  --scroll-wait 1.5 \
+  --expand-max-clicks-per-page 8 \
+  --expand-click-wait 0.35 \
+  --expand-after-page-wait 1.2 \
+  --source-code WIND \
+  --table-prefix WIND \
+  --output 万得数据节点目录_爬取结果.xlsx
+
+六、可选参数
+- 指定OCR区域：--region x,y,w,h
+- 指定tesseract路径：--tesseract-cmd /usr/bin/tesseract
+- 跳过登录等待提示：--skip-login-wait
+- 调试输出：--debug-dir debug_out
+
+七、常见问题
+1. 报错“tesseract not found”
+   - 检查：which tesseract
+   - 或手动传：--tesseract-cmd /usr/bin/tesseract
+2. OCR识别差
+   - 降低滚动速度（增大 --scroll-wait）
+   - 适当降低 --min-conf（如 20-25）
+   - 保证客户端缩放100%、字体清晰
+3. 无法控制鼠标/滚轮
+   - 尽量使用 X11 会话（Wayland 下可能限制模拟输入）
+4. 输出节点明显偏少
+   - 开启 --auto-expand
+   - 增大 --max-pages（如 400）
+   - 加 --debug-dir 检查每页截图和OCR文本
+
+八、输出结构
+- 输出文件默认：万得数据节点目录_爬取结果.xlsx
+- 工作表默认：外部数据目录
+- 字段顺序：
+  序号、节点编号、节点名称、父节点编号、描述、类型（0-数据源，1-目录，2-表）、更新时间

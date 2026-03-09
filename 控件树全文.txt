@@ -1,0 +1,6 @@
+control=Pane | name= | auto_id= | class=Intermediate D3D Window
+control=Pane | name= | auto_id= | class=
+control=Pane | name= | auto_id= | class=
+control=Pane | name= | auto_id= | class=
+control=Pane | name= | auto_id= | class=
+control=Pane | name= | auto_id= | class=

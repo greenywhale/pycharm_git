@@ -1,0 +1,96 @@
+﻿查看控件结构.py 使用指南与注意事项
+
+一、脚本用途
+- 文件：查看控件结构.py
+- 作用：
+  1) Windows：读取客户端窗口的 UIA 控件树（若可读取）
+  2) Linux（银河麒麟）：使用 OCR 方式输出“可见树区域”的结构化文本（非原生UIA）
+
+二、运行前准备
+1. 必备环境
+- Python 3.10+
+
+2. Windows 模式依赖（UIA）
+- pip install pywinauto
+
+3. OCR 模式依赖（Linux 必需，Windows 可选）
+- pip install pytesseract opencv-python numpy mss pynput pillow
+- 安装 Tesseract OCR（含中文语言包）
+  - Linux示例：sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim
+
+4. 操作准备
+- 先手动打开客户端并登录
+- 切到“树形目录页面”
+- 尽量保持窗口前台，避免遮挡
+
+三、基础命令
+1. 自动模式（推荐）
+- python 查看控件结构.py --mode auto
+说明：
+- 在 Windows 自动走 UIA
+- 在 Linux 自动走 OCR
+
+2. 强制 Windows UIA 模式
+- python 查看控件结构.py --mode windows
+
+3. 强制 OCR 模式
+- python 查看控件结构.py --mode ocr
+
+4. 指定窗口标题筛选（Windows）
+- python 查看控件结构.py --mode windows --window-title-regex ".*万得.*"
+
+5. 指定 OCR 区域（避免手动选点）
+- python 查看控件结构.py --mode ocr --region 469,97,409,1263
+
+6. 指定 Tesseract 路径
+- python 查看控件结构.py --mode ocr --tesseract-cmd /usr/bin/tesseract
+- Windows 示例：--tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+7. 跳过登录等待提示
+- python 查看控件结构.py --skip-login-wait
+
+四、输出说明
+1. 默认输出文件
+- 控件树全文.txt（当前工作目录）
+
+2. 可改输出文件名
+- python 查看控件结构.py --output 我自己的控件结构.txt
+
+3. 预览长度
+- 默认终端只预览前 4000 字符
+- 可用 --preview-chars 调整
+
+五、注意事项（重点）
+1. Linux 下不是 UIA 控件树
+- Linux 的 --mode ocr 输出的是“截图识别文本结构”，用于定位目录层级与文本内容
+- 如果你需要真正的 UIA AutomationId/ControlType，必须在 Windows + 可访问 UIA 的客户端环境下执行
+
+2. OCR 结果受画面质量影响
+- 字体过小、缩放异常、窗口遮挡、滚动条覆盖都会影响识别
+- 建议客户端缩放 100%、字体清晰、背景静止
+
+3. 自绘控件场景
+- 就算在 Windows，也可能出现控件树信息很少（自绘控件）
+- 这不是脚本错误，属于客户端实现方式限制
+
+4. Wayland 兼容性
+- Linux 某些 Wayland 环境下，鼠标/截图/输入模拟可能受限
+- 建议优先在 X11 会话运行 OCR 相关脚本
+
+六、常见报错与处理
+1. 报错：缺少 pywinauto
+- 处理：pip install pywinauto
+
+2. 报错：tesseract not found
+- 处理：安装 tesseract-ocr，并传 --tesseract-cmd 指定路径
+
+3. 报错：未找到可见窗口（Windows）
+- 处理：确认客户端已打开、未最小化；用 --window-title-regex 放宽匹配
+
+4. 报错：OCR 未识别到可用文本
+- 处理：重新框选更准确区域；降低 --min-conf（如 20~25）
+
+七、建议工作流
+1. 先运行：python 查看控件结构.py --mode auto
+2. 若 Windows 读不到有效控件树，改用：--mode ocr 验证树文本可识别性
+3. 再运行目录爬虫脚本并对照输出结果
