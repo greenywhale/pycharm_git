@@ -1,8 +1,7 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import argparse
-import getpass
 import os
 import re
 import sys
@@ -23,10 +22,11 @@ BASE_URL = "https://gogoaldata.go-goal.cn"
 DEFAULT_URL = "https://gogoaldata.go-goal.cn/html/Index.html?code=sm4_ddl"
 DEFAULT_OUTPUT = "朝阳永续数据节点_爬取结果.xlsx"
 DEFAULT_REFERENCE = "朝阳永续数据节点.xlsx"
-NAME_NORMALIZER = re.compile(r"[\s\-\_()??]")
-TABLE_SPACE_RE = re.compile(r"\s+")
-TABLE_CODE_RE = re.compile(r"[^A-Z0-9_]+")
-GUID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
+
+_NAME_NORMALIZER = re.compile(r"[\s\-_()（）]")
+_TABLE_SPACE_RE = re.compile(r"\s+")
+_TABLE_CODE_RE = re.compile(r"[^A-Z0-9_]+")
+_GUID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
 
 SKIP_GROUP_NAMES = {
     "聚源新版数据库",
@@ -34,14 +34,10 @@ SKIP_GROUP_NAMES = {
     "私募数据库",
     "朝阳永续私募数据库",
 }
-
-def normalize_name(text: str) -> str:
-    return NAME_NORMALIZER.sub("", str(text or ""))
+NORMALIZED_SKIP_GROUP_NAMES = {_NAME_NORMALIZER.sub("", n) for n in SKIP_GROUP_NAMES}
 
 
-NORMALIZED_SKIP_GROUP_NAMES = {normalize_name(name) for name in SKIP_GROUP_NAMES}
-
-@dataclass
+@dataclass(slots=True)
 class SourceMeta:
     seq: Optional[float]
     code: str
@@ -49,12 +45,11 @@ class SourceMeta:
     desc: str
 
 
-@dataclass
+@dataclass(slots=True)
 class TreeNode:
     guid: str
     father_guid: Optional[str]
     menu_name: str
-    display_type: int
     children: List["TreeNode"]
 
 
@@ -102,18 +97,21 @@ def first_non_empty(d: Dict[str, Any], keys: Iterable[str], default: str = "") -
     return default
 
 
+def normalize_name(text: str) -> str:
+    return _NAME_NORMALIZER.sub("", str(text or ""))
+
+
 def is_skip_group(name: str) -> bool:
     normalized = normalize_name(name)
     if normalized in NORMALIZED_SKIP_GROUP_NAMES:
         return True
-    if "??" in normalized and "?????" in normalized:
+    if "聚源" in normalized and "新版数据库" in normalized:
         return True
-    if normalized.endswith("?????"):
+    if normalized.endswith("私募数据库"):
         return True
     return False
 
 
-def load_source_meta(args: argparse.Namespace) -> SourceMeta:
 def load_source_meta(args: argparse.Namespace) -> SourceMeta:
     row: Dict[str, Any] = {}
     ref_path = Path(args.reference)
@@ -137,17 +135,8 @@ def load_source_meta(args: argparse.Namespace) -> SourceMeta:
 def read_password_interactive(preset: Optional[str] = None, visible_password: bool = False) -> str:
     if preset is not None:
         return preset
-    pycharm_hosted = os.environ.get("PYCHARM_HOSTED") == "1"
-    no_tty = not sys.stdin.isatty()
-    if visible_password or pycharm_hosted or no_tty:
-        print("账号已接收，当前终端使用可见输入密码...", flush=True)
-        return input("请输入密码: ").strip()
-    print("账号已接收，下一步输入密码（输入内容默认不显示）...", flush=True)
-    try:
-        return getpass.getpass("请输入密码（不回显）: ")
-    except Exception:
-        return input("请输入密码（可见输入）: ").strip()
-
+    print("Password input is visible.", flush=True)
+    return input("Password: ").strip()
 
 def is_valid_username(username: str) -> bool:
     if not username:
@@ -191,8 +180,7 @@ class GoGoalClient:
         self._cache_lock = threading.Lock()
 
     def bootstrap(self, url: str) -> None:
-    def bootstrap(self, url: str) -> None:
-        self.session.get(url, timeout=30)
+        self.session.get(url, timeout=(8, 25))
 
     def _request(self, method: str, api_path: str, **kwargs: Any) -> requests.Response:
         url = api_path if api_path.startswith("http") else f"{BASE_URL}/api/{api_path.lstrip('/')}"
@@ -201,7 +189,6 @@ class GoGoalClient:
         resp.raise_for_status()
         return resp
 
-    @staticmethod
     @staticmethod
     def _parse_json(resp: requests.Response) -> Dict[str, Any]:
         try:
@@ -234,7 +221,6 @@ class GoGoalClient:
         if not user_id or not org_id:
             raise RuntimeError(f"登录成功但未返回 account_id/org_id: {inner}")
 
-        # 模拟页面登录后的 cookie 状态，兼容后续接口校验
         self.session.cookies.set("AccountID", user_id, domain="gogoaldata.go-goal.cn", path="/")
         self.session.cookies.set("OrgID", org_id, domain="gogoaldata.go-goal.cn", path="/")
         self.session.cookies.set("name", str(inner.get("account_name") or username), domain="gogoaldata.go-goal.cn", path="/")
@@ -270,9 +256,7 @@ class GoGoalClient:
             raise RuntimeError(f"获取树失败: {top.get('message') or top}")
         data = top.get("data")
         if not isinstance(data, list) or len(data) == 0:
-            raise RuntimeError(
-                "获取到空树数据，请检查账号权限、org_id/user_id 与 code 是否匹配。"
-            )
+            raise RuntimeError("获取到空树数据，请检查账号权限、org_id/user_id 与 code 是否匹配。")
         return data
 
     def get_table_struct(self, guid: str, table_type: int = 0) -> Dict[str, Any]:
@@ -280,11 +264,13 @@ class GoGoalClient:
         cached = self.table_cache.get(guid)
         if cached is not None:
             return cached
+
         payload = {"table_type": str(table_type), "guid": guid}
         resp = self._request("POST", "v1/dd_data/get_table_struct", data=payload)
         top = self._parse_json(resp)
         if int(top.get("code", -1)) != 0:
             raise RuntimeError(f"获取表结构失败 guid={guid}: {top.get('message') or top}")
+
         data = top.get("data")
         if not isinstance(data, dict):
             data = {}
@@ -295,7 +281,7 @@ class GoGoalClient:
 
 def build_tree_nodes(raw_nodes: List[Dict[str, Any]]) -> List[TreeNode]:
     node_map: Dict[str, TreeNode] = {}
-    order: List[str] = []
+    node_order: List[TreeNode] = []
 
     for item in raw_nodes:
         guid = str(item.get("guid") or "").strip()
@@ -304,22 +290,17 @@ def build_tree_nodes(raw_nodes: List[Dict[str, Any]]) -> List[TreeNode]:
         father_guid = item.get("father_guid")
         father_guid = str(father_guid).strip() if father_guid is not None else None
         menu_name = first_non_empty(item, ["menu_name", "name"], default="未命名节点")
-        try:
-            display_type = int(item.get("display_type") or 0)
-        except Exception:
-            display_type = 0
-        node_map[guid] = TreeNode(
+        node = TreeNode(
             guid=guid,
             father_guid=father_guid if father_guid else None,
             menu_name=menu_name,
-            display_type=display_type,
             children=[],
         )
-        order.append(guid)
+        node_map[guid] = node
+        node_order.append(node)
 
     roots: List[TreeNode] = []
-    for guid in order:
-        node = node_map[guid]
+    for node in node_order:
         if node.father_guid and node.father_guid in node_map:
             node_map[node.father_guid].children.append(node)
         else:
@@ -344,11 +325,11 @@ def collect_leaf_guids(nodes: List[TreeNode]) -> List[str]:
 
 
 def preload_tables(client: GoGoalClient, guids: List[str], workers: int = 8) -> None:
-def preload_tables(client: GoGoalClient, guids: List[str], workers: int = 8) -> None:
     unique_guids = list(dict.fromkeys(guids))
     if not unique_guids:
         print("[进度] 无表详情需要预加载。", flush=True)
         return
+
     workers = min(max(1, workers), len(unique_guids))
     total = len(unique_guids)
     done = 0
@@ -375,15 +356,15 @@ def preload_tables(client: GoGoalClient, guids: List[str], workers: int = 8) -> 
                         f"[进度] 表详情 {done}/{total} ({done / total:.0%}), 失败={failed}, 耗时={elapsed:.1f}s, 速率={speed:.1f}表/s",
                         flush=True,
                     )
+
     print(f"[进度] 表详情预加载完成: 成功={total - failed}, 失败={failed}", flush=True)
 
 
 def extract_table_name_en(table_data: Dict[str, Any]) -> str:
     desc = table_data.get("table_describle")
     info: Dict[str, Any] = {}
-    if isinstance(desc, list) and desc:
-        if isinstance(desc[0], dict):
-            info = desc[0]
+    if isinstance(desc, list) and desc and isinstance(desc[0], dict):
+        info = desc[0]
     elif isinstance(desc, dict):
         info = desc
     return first_non_empty(
@@ -394,8 +375,7 @@ def extract_table_name_en(table_data: Dict[str, Any]) -> str:
 
 
 def build_rows(client: GoGoalClient, roots: List[TreeNode], source: SourceMeta, update_date: str) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    rows.append(
+    rows: List[Dict[str, Any]] = [
         {
             "序号": source.seq,
             "节点编号": source.code,
@@ -405,25 +385,21 @@ def build_rows(client: GoGoalClient, roots: List[TreeNode], source: SourceMeta, 
             "类型（0-数据源，1-目录，2-表）": 0,
             "更新时间": update_date,
         }
-    )
+    ]
 
     def table_code(guid: str, fallback_name: str) -> str:
         table_data = client.table_cache.get(guid) or {}
-        table_name_en = extract_table_name_en(table_data)
-        if not table_name_en:
-            table_name_en = fallback_name
-        cleaned = TABLE_SPACE_RE.sub("", str(table_name_en)).upper()
-        cleaned = TABLE_CODE_RE.sub("_", cleaned).strip("_")
+        table_name_en = extract_table_name_en(table_data) or fallback_name
+        cleaned = _TABLE_SPACE_RE.sub("", str(table_name_en)).upper()
+        cleaned = _TABLE_CODE_RE.sub("_", cleaned).strip("_")
         if not cleaned:
-            cleaned = f"TABLE_{GUID_CLEAN_RE.sub('', guid)[:16] or 'UNKNOWN'}"
+            cleaned = f"TABLE_{_GUID_CLEAN_RE.sub('', guid)[:16] or 'UNKNOWN'}"
         return f"{source.code}_{cleaned}"
 
-    def walk(nodes: List[TreeNode], parent_code: str) -> None:
     def walk(nodes: List[TreeNode], parent_code: str) -> None:
         group_index = 0
 
         def process_node(node: TreeNode, current_parent_code: str, current_group_index: int) -> int:
-            # 同旧脚本要求：跳过“聚源新版数据库”这一层，其子节点上移一级参与编号
             if is_skip_group(node.menu_name):
                 for child in node.children:
                     current_group_index = process_node(child, current_parent_code, current_group_index)
@@ -466,6 +442,14 @@ def build_rows(client: GoGoalClient, roots: List[TreeNode], source: SourceMeta, 
     return rows
 
 
+def write_excel(df: pd.DataFrame, output_path: Path) -> None:
+    try:
+        with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+    except (ModuleNotFoundError, ImportError, ValueError):
+        df.to_excel(output_path, index=False)
+
+
 def main() -> int:
     args = parse_args()
     function_code = args.code or parse_code_from_url(args.url)
@@ -473,7 +457,7 @@ def main() -> int:
     output_path = Path(args.output).resolve()
     print(f"[进度] 任务启动: code={function_code}, 输出={output_path}", flush=True)
 
-    client = GoGoalClient()
+    client = GoGoalClient(pool_size=max(16, args.workers * 2))
     print("[进度] 初始化站点会话...", flush=True)
     client.bootstrap(args.url)
 
@@ -495,7 +479,6 @@ def main() -> int:
     else:
         print(f"[进度] 使用传入身份参数: org_id={org_id}, user_id={user_id}", flush=True)
 
-    # 权限校验：若 token 可用则校验；无 token 则跳过（部分环境依赖 cookie 会话）
     if token:
         print("[进度] 校验产品权限...", flush=True)
         client.query_permission(function_code, token)
@@ -519,7 +502,8 @@ def main() -> int:
     print(f"[进度] 节点清单生成完成，共 {len(rows)} 行。", flush=True)
 
     root_dirs = [
-        r for r in rows
+        r
+        for r in rows
         if r["类型（0-数据源，1-目录，2-表）"] == 1 and r["父节点编号"] == source_meta.code
     ]
     if root_dirs:
@@ -531,11 +515,7 @@ def main() -> int:
         columns=["序号", "节点编号", "节点名称", "父节点编号", "描述", "类型（0-数据源，1-目录，2-表）", "更新时间"],
     )
     print("[进度] 写出 Excel...", flush=True)
-    try:
-        with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-    except (ModuleNotFoundError, ImportError, ValueError):
-        df.to_excel(output_path, index=False)
+    write_excel(df, output_path)
     print(f"完成：共输出 {len(df)} 行 -> {output_path}", flush=True)
     return 0
 
