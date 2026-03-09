@@ -1,0 +1,103 @@
+﻿银河麒麟爬虫方式诊断.py 使用说明
+
+一、文件位置
+- 脚本文件：银河麒麟爬虫方式诊断.py
+- 建议在脚本所在目录执行命令
+
+二、脚本作用
+该脚本用于判断万得客户端在银河麒麟上更适合哪种抓取方式：
+1) HTTP/API（网络接口）
+2) AT-SPI2 控件结构
+3) OCR 图像识别
+
+脚本会输出评分、证据、阻塞点、建议，并给出最终推荐方案。
+
+三、运行前准备
+1. Python 3.10+
+2. 安装 Python 依赖：
+   python3 -m pip install psutil mss pynput pytesseract opencv-python numpy pillow
+3. 安装系统依赖：
+   sudo apt update
+   sudo apt install -y python3-pyatspi tesseract-ocr tesseract-ocr-chi-sim
+4. 手动打开并登录客户端，进入树形目录页面
+
+四、快速开始
+1. 交互选区（推荐）
+   python3 银河麒麟爬虫方式诊断.py --pick-region
+
+2. 指定区域运行
+   python3 银河麒麟爬虫方式诊断.py --region 469,97,409,1263
+
+3. 自定义窗口匹配
+   python3 银河麒麟爬虫方式诊断.py --window-regex ".*(万得|Wind).*" --pick-region
+
+五、主要参数
+- --window-regex
+  窗口标题匹配正则（默认：.*(万得|Wind|国投).*）
+- --process-regex
+  进程匹配正则（默认：(wind|wft|万得|国投)）
+- --http-sample-seconds
+  HTTP网络采样时长，默认 6 秒
+- --devtools-port-range
+  本地调试端口扫描范围，默认 9222-9333
+- --atspi-max-nodes
+  AT-SPI2 最大扫描节点数，默认 12000
+- --region
+  OCR测试区域，格式 x,y,w,h
+- --pick-region
+  交互选择 OCR 区域
+- --ocr-min-conf
+  OCR最低置信度，默认 25
+- --json-output
+  JSON报告文件名
+- --text-output
+  文本报告文件名
+
+六、输出文件
+默认会生成：
+1) 爬虫方式诊断报告.txt
+2) 爬虫方式诊断报告.json
+
+七、如何解读结果
+每种方法都有：评分、状态、证据、阻塞点、建议。
+- 状态“可行”：可以优先落地
+- 状态“可能”：可做，但需要调参与验证
+- 状态“较难”：证据不足或阻塞较多
+- 状态“不可判断”：环境依赖没装全或条件不满足
+
+最终建议会给出首选路线，例如：
+- 优先 AT-SPI2 控件爬虫
+- 优先 OCR 爬虫
+- 优先 HTTP/API 方案
+- 建议双轨（AT-SPI2 + OCR）
+
+八、诊断后怎么做
+1. 若 AT-SPI2 可行：
+   使用 万得客户端树形目录爬虫_ATSPI2.py
+2. 若 OCR 可行：
+   使用 万得自绘目录OCR爬虫_linux兼容.py
+3. 若 HTTP/API 可行：
+   建议进一步抓包确认接口鉴权和返回结构
+
+九、常见问题
+1. 报错“缺少 pyatspi”
+   - 执行：sudo apt install -y python3-pyatspi
+
+2. 报错“tesseract not found”
+   - 执行：sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim
+   - 或用 --tesseract-cmd 指定路径（如 /usr/bin/tesseract）
+
+3. OCR 结果很差
+   - 重新框选目录区域
+   - 提高画面清晰度，避免遮挡
+   - 适当降低 --ocr-min-conf（如 20）
+
+4. AT-SPI2 看不到树节点
+   - 可能是自绘控件未暴露无障碍结构
+   - 这种情况应改用 OCR 方案
+
+十、建议执行顺序
+1) 先跑本诊断脚本
+2) 按“最终建议”选择抓取脚本
+3) 小范围试跑（先抓几十页）
+4) 再全量跑并核对输出节点数量

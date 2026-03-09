@@ -1,0 +1,101 @@
+﻿万得客户端树形目录爬虫_ATSPI2.py 使用说明
+
+一、脚本用途
+- 文件：万得客户端树形目录爬虫_ATSPI2.py
+- 场景：银河麒麟/Linux 下，尝试通过 AT-SPI2 无障碍接口读取客户端树形目录并导出 Excel。
+- 说明：仅当客户端暴露无障碍控件树时可用；若不可见需改用 OCR 方案。
+
+二、环境要求
+1) 操作系统：Linux（银河麒麟）
+2) Python：3.10+
+3) Python依赖：
+   python3 -m pip install pandas openpyxl
+4) 系统依赖（关键）：
+   sudo apt update
+   sudo apt install -y python3-pyatspi at-spi2-core
+
+验证安装：
+python3 -c "import pyatspi; print('OK', pyatspi.__file__)"
+
+三、运行前准备
+1) 手动打开并登录万得客户端
+2) 切换到“树形目录”页面
+3) 保持窗口前台，不要最小化
+
+四、推荐执行顺序
+步骤1：先看控件树是否可读
+python3 万得客户端树形目录爬虫_ATSPI2.py --print-controls --window-title-regex ".*(万得|Wind).*"
+
+步骤2：若可读，再正式抓取
+python3 万得客户端树形目录爬虫_ATSPI2.py \
+  --window-title-regex ".*(万得|Wind).*" \
+  --source-code WIND \
+  --source-name 万得数据 \
+  --source-desc 南京万得资讯科技有限公司 \
+  --output 万得数据节点目录_爬取结果_ATSPI2.xlsx
+
+五、输出说明
+1) 正式抓取输出（默认）：
+- 万得数据节点目录_爬取结果_ATSPI2.xlsx
+
+2) 仅控件树输出（--print-controls 时，默认）：
+- 控件树全文_ATSPI2.txt
+
+3) Excel字段结构（与目录模板一致）：
+- 序号
+- 节点编号
+- 节点名称
+- 父节点编号
+- 描述
+- 类型（0-数据源，1-目录，2-表）
+- 更新时间
+
+六、常用参数
+- --window-title-regex
+  窗口标题正则，例如 ".*万得.*"
+- --window-pick-index
+  匹配到多个窗口时，指定窗口序号
+- --tree-name-regex
+  树控件名称匹配正则
+- --tree-index
+  匹配到多个树控件时，选第几个（从0开始）
+- --max-depth
+  最大递归层级，防止异常深度
+- --max-walk-nodes
+  控件树最大扫描节点数
+- --expand-wait-seconds
+  展开节点后的等待秒数
+- --skip-login-wait
+  跳过“按回车继续”提示
+
+七、编码规则说明
+- 根节点编号：WIND（可通过 --source-code 改）
+- 目录节点编号：WIND + 两位层级序号拼接（如 WIND01、WIND0102）
+- 表节点编号：优先 WIND_表英文名（从“中文[English]”提取），无英文名则 WIND_中文转码
+
+八、常见问题
+1) 报错：No module named pyatspi
+- 原因：系统未安装 python3-pyatspi
+- 处理：sudo apt install -y python3-pyatspi at-spi2-core
+
+2) 能选到窗口，但抓不到树节点
+- 原因：客户端可能是自绘控件，未暴露 AT-SPI2 结构
+- 处理：
+  - 先用 --print-controls 观察是否有 tree/list/tree item 角色
+  - 若没有，改用 OCR 脚本：万得自绘目录OCR爬虫_linux兼容.py
+
+3) 抓取结果节点很少
+- 处理：
+  - 提高 --max-depth（如 30）
+  - 适当增加 --expand-wait-seconds（如 0.4~0.8）
+  - 指定正确树控件（--tree-index 或 --tree-name-regex）
+
+4) 多个窗口标题相似，选错窗口
+- 处理：
+  - 先用 --window-title-regex 缩小范围
+  - 再用 --window-pick-index 指定
+
+九、建议策略
+1) 先运行 --print-controls 评估可访问性
+2) 若 AT-SPI2 可读，优先用本脚本
+3) 若 AT-SPI2 不可读，直接切换 OCR 方案
