@@ -1,6 +1,0 @@
-0533|x=0007|Downloads
-0690|x=0003|SourceCode
-0794|x=0002|SourcecodeofTesseract's
-0912|x=0005|BinariesforLinux
-1016|x=0000|Tesseractisincludedinm
-1134|x=0005|BinariesforWind

@@ -1,5 +1,0 @@
-0009|x=0284|ocralt/file
-0183|x=0000|rceSoftwareSourceForgePod
-0545|x=0004|nloadfortesseract-ocrprojec
-0832|x=0005|Version
-0863|x=0000|ide-dirs.zip(29.4MB)
